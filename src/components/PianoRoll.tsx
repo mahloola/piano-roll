@@ -178,28 +178,12 @@ const PianoRollFalling: React.FC = () => {
   }
 
   // Error state
-  if (error) {
+  if (error || !midiFile) {
+    const message = error ? `Error: ${error}` : 'No MIDI file found';
     return (
       <div className='min-h-screen bg-gray-900 text-white p-6 flex items-center justify-center'>
         <div className='text-center'>
-          <p className='text-xl text-red-400 mb-4'>Error: {error}</p>
-          <button
-            onClick={handleClose}
-            className='bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded'
-          >
-            Back to Uploads
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // No file state
-  if (!midiFile) {
-    return (
-      <div className='min-h-screen bg-gray-900 text-white p-6 flex items-center justify-center'>
-        <div className='text-center'>
-          <p className='text-xl text-gray-400 mb-4'>No MIDI file found</p>
+          <p className='text-xl text-red-400 mb-4'>{message}</p>
           <button
             onClick={handleClose}
             className='bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded'
