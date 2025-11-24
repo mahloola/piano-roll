@@ -11,6 +11,8 @@ permissions:
 
 jobs:
   build:
+    environment:
+      name: piano-roll-env
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
