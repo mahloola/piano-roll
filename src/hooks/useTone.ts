@@ -91,7 +91,6 @@ export const useTone = () => {
         }
       });
 
-      // Use Tone.Part directly, not transportRef.current.Part
       partRef.current = new Part(
         (_time: number, note: MidiNote | number) => {
           const midiNote = note as MidiNote;
