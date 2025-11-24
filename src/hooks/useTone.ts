@@ -33,8 +33,8 @@ export const useTone = () => {
       let Tone;
       try {
         const toneModule = await import('tone');
-        Tone = toneModule.default || toneModule;
-      } catch (importError) {
+        Tone = toneModule;
+      } catch {
         console.warn('Tone.js not available, using mock mode');
         setToneError(
           'Tone.js not installed - running in visualization-only mode',
@@ -66,7 +66,7 @@ export const useTone = () => {
     } catch (error) {
       console.error('Failed to initialize Tone.js:', error);
       setToneError('Failed to initialize audio engine');
-      setIsToneReady(true);
+      setIsToneReady(false);
     }
   };
 
@@ -78,7 +78,7 @@ export const useTone = () => {
 
     try {
       const Tone = await import('tone');
-      const Part = Tone.Part || (Tone as any).Part; // Handle different import styles
+      const Part = Tone.Part;
 
       transportRef.current.stop();
       if (partRef.current) {
@@ -94,12 +94,13 @@ export const useTone = () => {
 
       // Use Tone.Part directly, not transportRef.current.Part
       partRef.current = new Part(
-        (time: number, note: MidiNote) => {
+        (_time: number, note: MidiNote | number) => {
+          const midiNote = note as MidiNote;
           synthRef.current.triggerAttackRelease(
-            note.name,
-            note.duration,
-            time,
-            note.velocity,
+            midiNote.name,
+            midiNote.duration,
+            midiNote,
+            midiNote.velocity,
           );
         },
         allNotes.map((note) => [note.time, note]),

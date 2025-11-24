@@ -9,7 +9,7 @@ const Signup = () => {
   const [error, setError] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
-  const { session, signUpNewUser } = UserAuth();
+  const { signUpNewUser } = UserAuth();
   const navigate = useNavigate();
 
   const handleSignUp = async (e: FormEvent<HTMLFormElement>): Promise<void> => {

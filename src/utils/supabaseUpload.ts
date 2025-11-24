@@ -22,7 +22,7 @@ export const uploadFile = async ({
     const filePath = `${userId}/${fileName}`;
 
     // 2. Upload file to Supabase Storage
-    const { data: storageData, error: storageError } = await supabase.storage
+    const { error: storageError } = await supabase.storage
       .from('midi-files') // Your bucket name
       .upload(filePath, file);
 

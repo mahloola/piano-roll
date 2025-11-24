@@ -18,7 +18,7 @@ const PianoRollFalling: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
 
   const { session } = UserAuth();

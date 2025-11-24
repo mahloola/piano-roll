@@ -12,7 +12,9 @@ interface KeyMap {
   [key: number]: Array<{ start: number; end: number }>;
 }
 
-export const usePianoRoll = (canvasRef: React.RefObject<HTMLCanvasElement>) => {
+export const usePianoRoll = (
+  canvasRef: React.RefObject<HTMLCanvasElement | null>,
+) => {
   const [keys, setKeys] = useState<Key[]>([]);
   const [dimensions, setDimensions] = useState({
     keyboardWidth: 0,
@@ -53,7 +55,7 @@ export const usePianoRoll = (canvasRef: React.RefObject<HTMLCanvasElement>) => {
     keysRef.current = newKeys;
   }, []);
 
-  const calculateDimensions = useCallback(() => {
+  const calculateDimensions = () => {
     if (!canvasRef.current) return;
     const canvas = canvasRef.current;
     const paddingBottom = 32;
@@ -83,22 +85,22 @@ export const usePianoRoll = (canvasRef: React.RefObject<HTMLCanvasElement>) => {
 
     setDimensions(newDimensions);
     dimensionsRef.current = newDimensions;
-  }, []);
+  };
 
-  const initPianoRoll = useCallback(() => {
+  const initPianoRoll = () => {
     createKeys();
     calculateDimensions();
-  }, [createKeys, calculateDimensions]);
+  };
 
-  const resizeCanvas = useCallback(() => {
+  const resizeCanvas = () => {
     if (canvasRef.current?.parentElement) {
       const canvas = canvasRef.current;
       const container = canvas.parentElement;
-      canvas.width = container.clientWidth;
+      canvas.width = container?.clientWidth || 800;
       canvas.height = 500;
       calculateDimensions();
     }
-  }, [calculateDimensions]);
+  };
 
   const updateKeyActivity = useCallback(
     (currentTime: number, keyMap: KeyMap) => {
@@ -211,27 +213,28 @@ export const usePianoRoll = (canvasRef: React.RefObject<HTMLCanvasElement>) => {
     [],
   );
 
-  const drawPianoRoll = useCallback(
-    (keyMap: KeyMap, isPlaying: boolean, currentTime: number = 0) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+  const drawPianoRoll = (
+    keyMap: KeyMap,
+    _isPlaying: boolean,
+    currentTime: number = 0,
+  ) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
 
-      // Clear canvas
-      ctx.fillStyle = '#202020';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // Clear canvas
+    ctx.fillStyle = '#202020';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Only draw if we have valid dimensions
-      if (dimensionsRef.current.keyboardWidth > 0) {
-        updateKeyActivity(currentTime, keyMap);
-        drawIncomingNotes(ctx, currentTime, keyMap);
-        drawKeyboard(ctx);
-      }
-    },
-    [updateKeyActivity, drawIncomingNotes, drawKeyboard],
-  );
+    // Only draw if we have valid dimensions
+    if (dimensionsRef.current.keyboardWidth > 0) {
+      updateKeyActivity(currentTime, keyMap);
+      drawIncomingNotes(ctx, currentTime, keyMap);
+      drawKeyboard(ctx);
+    }
+  };
 
   return {
     initPianoRoll,

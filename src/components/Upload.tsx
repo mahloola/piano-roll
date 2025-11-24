@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { UserAuth } from '../context/AuthContext';
 import { uploadFile } from '../utils/supabaseUpload.ts';
 
 const FileUpload = () => {
   const { session } = UserAuth();
+  const navigate = useNavigate();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -27,8 +29,9 @@ const FileUpload = () => {
     }
 
     setUploading(false);
+    navigate('/uploads');
 
-    // Reset the input to allow uploading the same file again
+    // reset the input to allow uploading the same file again
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -45,8 +48,8 @@ const FileUpload = () => {
         type='file'
         onChange={handleFileUpload}
         disabled={uploading}
-        accept='.mid,.midi' // Only accept MIDI files
-        className='hidden' // Hide the default input
+        accept='.mid,.midi'
+        className='hidden'
       />
 
       <button

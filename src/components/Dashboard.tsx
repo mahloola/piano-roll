@@ -1,12 +1,10 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { UserAuth } from '../context/AuthContext';
 import Navbar from './Navbar';
 import FileUpload from './Upload';
 
 const Dashboard: React.FC = () => {
   const { session } = UserAuth();
-  const navigate = useNavigate();
 
   return (
     <>
