@@ -26,11 +26,9 @@ export const usePianoRoll = (
     secondSize: 0,
   });
 
-  // Use refs for values that change frequently but don't need re-renders
   const keysRef = useRef<Key[]>([]);
   const dimensionsRef = useRef(dimensions);
 
-  // Update refs when state changes
   useEffect(() => {
     keysRef.current = keys;
   }, [keys]);
@@ -122,7 +120,6 @@ export const usePianoRoll = (
     const currentKeys = keysRef.current;
     const yPos = ctx.canvas.height - 32 - dims.whiteKeyHeight;
 
-    // Draw white keys
     currentKeys.forEach((key) => {
       if (key.color === 'white') {
         ctx.fillStyle = key.active ? '#0080ff' : '#ffffff';
@@ -224,11 +221,9 @@ export const usePianoRoll = (
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas
     ctx.fillStyle = '#202020';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Only draw if we have valid dimensions
     if (dimensionsRef.current.keyboardWidth > 0) {
       updateKeyActivity(currentTime, keyMap);
       drawIncomingNotes(ctx, currentTime, keyMap);

@@ -53,10 +53,8 @@ export const useMidiParser = () => {
     try {
       const arrayBuffer = await file.arrayBuffer();
 
-      // Convert ArrayBuffer to Uint8Array
       const uint8Array = new Uint8Array(arrayBuffer);
 
-      // Parse MIDI data - the constructor accepts ArrayBuffer or Uint8Array
       const midi = new Midi(uint8Array);
 
       const tracks: MidiTrack[] = midi.tracks.map((track) => ({
@@ -67,7 +65,7 @@ export const useMidiParser = () => {
           velocity: note.velocity,
           midi: note.midi,
         })),
-        isPercussion: track.channel === 9, // Channel 10 (0-indexed 9) is percussion
+        isPercussion: track.channel === 9,
       }));
 
       const midiData: MidiData = {

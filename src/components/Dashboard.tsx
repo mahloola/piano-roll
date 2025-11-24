@@ -10,7 +10,6 @@ const Dashboard: React.FC = () => {
     <>
       <Navbar />
       <div className='relative min-h-screen'>
-        {/* Welcome text - centered in the middle of screen */}
         <div className='flex flex-col items-center justify-center min-h-screen'>
           <div className='text-center -mt-20 space-y-8'>
             <h1 className='text-2xl'>Welcome, {session?.user?.email}</h1>

@@ -43,7 +43,7 @@ export const useTone = () => {
         return;
       }
 
-      // Create synth with better settings
+      // arbitrary synth settings could proly change to whatever u want
       const polySynth = new Tone.PolySynth(Tone.Synth, {
         oscillator: {
           type: 'sawtooth',
@@ -61,8 +61,6 @@ export const useTone = () => {
       synthRef.current = polySynth;
       transportRef.current = Tone.Transport;
       setIsToneReady(true);
-
-      console.log('Tone.js initialized successfully');
     } catch (error) {
       console.error('Failed to initialize Tone.js:', error);
       setToneError('Failed to initialize audio engine');
@@ -72,12 +70,13 @@ export const useTone = () => {
 
   const playMidi = async (midiData: MidiData) => {
     if (!synthRef.current || !transportRef.current) {
-      console.warn('Audio not available - visualization only');
+      console.warn('❌ Audio not available - visualization only');
       return;
     }
 
     try {
       const Tone = await import('tone');
+
       const Part = Tone.Part;
       transportRef.current.stop();
       if (partRef.current) {
@@ -92,12 +91,13 @@ export const useTone = () => {
       });
 
       partRef.current = new Part(
-        (_time: number, note: MidiNote | number) => {
+        (time: number, note: MidiNote | number) => {
           const midiNote = note as MidiNote;
+
           synthRef.current.triggerAttackRelease(
             midiNote.name,
             midiNote.duration,
-            midiNote,
+            time,
             midiNote.velocity,
           );
         },
@@ -107,7 +107,7 @@ export const useTone = () => {
       partRef.current.start(0);
       transportRef.current.start();
     } catch (error) {
-      console.error('Error playing MIDI:', error);
+      console.error('❌ Error playing MIDI:', error);
     }
   };
 

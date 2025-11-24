@@ -3,7 +3,6 @@ import type { ReactNode } from 'react'; // Type-only import
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
-// Define types for our auth operations
 interface SignUpCredentials {
   email: string;
   password: string;
@@ -20,7 +19,6 @@ interface AuthResponse<T = any> {
   error?: AuthError | null;
 }
 
-// Define the shape of our context value
 interface AuthContextType {
   session: Session | null | undefined;
   signUpNewUser: (credentials: SignUpCredentials) => Promise<AuthResponse>;
@@ -28,10 +26,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
 }
 
-// Create context with type
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Define props for the provider
 interface AuthContextProviderProps {
   children: ReactNode;
 }
@@ -88,7 +84,7 @@ export const AuthContextProvider = ({ children }: AuthContextProviderProps) => {
       setSession(session);
     });
 
-    // Cleanup subscription
+    // cleanup subscription
     return () => subscription.unsubscribe();
   }, []);
 
