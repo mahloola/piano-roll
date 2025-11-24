@@ -15,3 +15,5 @@ Known issues:
 
 - Resizing the window while MIDI is playing breaks the canvas
 - MIDI player should auto-stop when there's no more notes
+- UI could do with polishing
+- Uploads page could do with pagination

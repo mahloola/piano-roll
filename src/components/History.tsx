@@ -71,6 +71,14 @@ const History = () => {
   return (
     <div className='min-h-screen bg-gray-900 text-white p-8'>
       <div className='max-w-4xl mx-auto'>
+        <button
+          onClick={() => {
+            navigate('/dashboard');
+          }}
+          className='bg-gray-800 hover:bg-gray-200 px-4 py-4 my-4 rounded'
+        >
+          ← Back to Home
+        </button>
         <h1 className='text-3xl font-bold mb-2'>Your Uploads</h1>
         <p className='text-gray-400 mb-8'>Manage your personal files</p>
 

@@ -42,7 +42,8 @@ const Signup = () => {
 
   return (
     <div className='max-w-md m-auto pt-24'>
-      <h1>Welcome to Songscription.</h1>
+      <h1>MIDI to Synthesia</h1>
+      <p className='pt-4'>A project inspired by Songscription.</p>
       <form
         onSubmit={handleSignUp}
         className='m-auto pt-12'
