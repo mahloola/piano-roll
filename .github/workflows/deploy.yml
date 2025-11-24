@@ -33,6 +33,8 @@ jobs:
           path: ./dist
 
   deploy:
+    environment:
+      name: piano-roll-env
     needs: build
     runs-on: ubuntu-latest
     steps:
