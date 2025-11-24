@@ -41,7 +41,7 @@ const Signin = () => {
   };
 
   return (
-    <div className='max-w-md m-auto pt-24'>
+    <div className='max-w-md m-auto pt-24 px-4 sm:px-6 w-full'>
       <h1>Welcome back.</h1>
       <form
         onSubmit={handleSignIn}

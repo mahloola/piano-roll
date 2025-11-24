@@ -41,7 +41,7 @@ const Signup = () => {
   };
 
   return (
-    <div className='max-w-md m-auto pt-24'>
+    <div className='max-w-md m-auto pt-24 px-4 sm:px-6 w-full'>
       <h1>MIDI to Synthesia</h1>
       <p className='pt-4'>A project inspired by Songscription.</p>
       <form

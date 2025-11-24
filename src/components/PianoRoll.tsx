@@ -232,7 +232,7 @@ const PianoRollFalling: React.FC = () => {
           </div>
 
           {/* Controls */}
-          <div className='flex gap-2'>
+          <div className='flex flex-col sm:flex-row gap-2 sm:pt-8'>
             <button
               onClick={handlePlay}
               disabled={!midiData || isPlaying}
