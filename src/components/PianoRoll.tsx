@@ -73,6 +73,7 @@ const PianoRollFalling: React.FC = () => {
   const initWhenReady = () => {
     if (!canvasRef.current) {
       requestAnimationFrame(initWhenReady);
+      return;
     }
     initTone();
     initPianoRoll();
