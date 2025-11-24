@@ -79,7 +79,6 @@ export const useTone = () => {
     try {
       const Tone = await import('tone');
       const Part = Tone.Part;
-
       transportRef.current.stop();
       if (partRef.current) {
         partRef.current.stop();
@@ -126,10 +125,33 @@ export const useTone = () => {
     }
   };
 
+  const pauseMidi = () => {
+    if (transportRef.current) {
+      transportRef.current.pause();
+    }
+
+    if (partRef.current) {
+      partRef.current.stop();
+    }
+
+    if (synthRef.current) {
+      synthRef.current.releaseAll();
+    }
+  };
+
+  const resumeMidi = () => {
+    if (transportRef.current && partRef.current) {
+      transportRef.current.start();
+      partRef.current.start(0);
+    }
+  };
+
   return {
     initTone,
     playMidi,
     stopMidi,
+    pauseMidi,
+    resumeMidi,
     isToneReady,
     toneError,
   };

@@ -13,6 +13,7 @@ const PianoRollFalling: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [midiFile, setMidiFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,7 +23,8 @@ const PianoRollFalling: React.FC = () => {
   const startTimeRef = useRef<number>(0);
 
   const { session } = UserAuth();
-  const { initTone, playMidi, stopMidi, isToneReady } = useTone();
+  const { initTone, playMidi, pauseMidi, resumeMidi, stopMidi, isToneReady } =
+    useTone();
   const { initPianoRoll, drawPianoRoll, resizeCanvas } =
     usePianoRoll(canvasRef);
   const { parseMidiFile, midiData, keyMap } = useMidiParser();
@@ -68,22 +70,26 @@ const PianoRollFalling: React.FC = () => {
     }
   }, [uploadId, session]);
 
-  // Initialize
-  useEffect(() => {
-    fetchMidiFile();
-  }, [fetchMidiFile]);
-
-  useEffect(() => {
-    if (!canvasRef.current) return;
-
+  const initWhenReady = () => {
+    if (!canvasRef.current) {
+      requestAnimationFrame(initWhenReady);
+    }
     initTone();
     initPianoRoll();
     resizeCanvas();
-
     const handleResize = () => resizeCanvas();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [initTone, initPianoRoll, resizeCanvas]);
+  };
+
+  // Initialize
+  useEffect(() => {
+    fetchMidiFile();
+  }, []);
+
+  useEffect(() => {
+    initWhenReady();
+  }, []);
 
   // Parse MIDI when ready
   useEffect(() => {
@@ -100,6 +106,7 @@ const PianoRollFalling: React.FC = () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       return;
     }
+    if (isPaused) return;
 
     startTimeRef.current = Date.now() - currentTime * 1000;
 
@@ -115,7 +122,7 @@ const PianoRollFalling: React.FC = () => {
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [keyMap, isPlaying, drawPianoRoll]);
+  }, [keyMap, isPlaying, isPaused]);
 
   const handlePlay = useCallback(async () => {
     console.log('Play clicked:', { midiData: !!midiData, isToneReady });
@@ -143,9 +150,20 @@ const PianoRollFalling: React.FC = () => {
   const handleStop = useCallback(() => {
     console.log('Stop clicked');
     setIsPlaying(false);
+    setIsPaused(false);
     setCurrentTime(0);
     stopMidi();
   }, [stopMidi]);
+
+  const handlePause = useCallback(() => {
+    if (isPaused) {
+      resumeMidi();
+      setIsPaused(false);
+    } else {
+      pauseMidi();
+      setIsPaused(true);
+    }
+  }, [isPaused, resumeMidi, pauseMidi]);
 
   const handleClose = () => navigate('/uploads');
 
@@ -220,6 +238,12 @@ const PianoRollFalling: React.FC = () => {
               className='bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded disabled:bg-gray-600 disabled:cursor-not-allowed'
             >
               {isPlaying ? 'Playing...' : 'Play'}
+            </button>
+            <button
+              onClick={handlePause}
+              disabled={!isPlaying}
+            >
+              {isPaused ? 'Resume' : 'Pause'}
             </button>
             <button
               onClick={handleStop}

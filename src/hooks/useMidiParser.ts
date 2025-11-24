@@ -1,6 +1,6 @@
 // hooks/useMidiParser.ts
 import { Midi } from '@tonejs/midi';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 interface MidiNote {
   time: number;
@@ -28,7 +28,28 @@ export const useMidiParser = () => {
   const [midiData, setMidiData] = useState<MidiData | null>(null);
   const [keyMap, setKeyMap] = useState<KeyMap>({});
 
-  const parseMidiFile = async (file: File) => {
+  const createKeyMap = (data: MidiData) => {
+    const newKeyMap: KeyMap = {};
+
+    for (let i = 21; i < 109; i++) {
+      newKeyMap[i] = [];
+    }
+
+    data.tracks.forEach((track) => {
+      if (!track.isPercussion) {
+        track.notes.forEach((note) => {
+          newKeyMap[note.midi].push({
+            start: note.time,
+            end: note.time + note.duration,
+          });
+        });
+      }
+    });
+
+    setKeyMap(newKeyMap);
+  };
+
+  const parseMidiFile = useCallback(async (file: File) => {
     try {
       const arrayBuffer = await file.arrayBuffer();
 
@@ -59,30 +80,7 @@ export const useMidiParser = () => {
     } catch (error) {
       console.error('Error parsing MIDI file:', error);
     }
-  };
-
-  const createKeyMap = (data: MidiData) => {
-    const newKeyMap: KeyMap = {};
-
-    // Initialize key map
-    for (let i = 21; i < 109; i++) {
-      newKeyMap[i] = [];
-    }
-
-    // Fill key map with note data
-    data.tracks.forEach((track) => {
-      if (!track.isPercussion) {
-        track.notes.forEach((note) => {
-          newKeyMap[note.midi].push({
-            start: note.time,
-            end: note.time + note.duration,
-          });
-        });
-      }
-    });
-
-    setKeyMap(newKeyMap);
-  };
+  }, []);
 
   return {
     parseMidiFile,
