@@ -1,17 +1,17 @@
 // components/PianoRollFalling.tsx
-import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { UserAuth } from "../context/AuthContext";
-import { usePianoRoll } from "../hooks/usePianoRoll";
-import { getCurrentPlaybackTime, useTone } from "../hooks/useTone";
-import { supabase } from "../supabaseClient";
-import useSWR from "swr";
-import { Midi } from "@tonejs/midi";
+import { Midi } from '@tonejs/midi';
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import useSWR from 'swr';
+import { UserAuth } from '../context/AuthContext';
+import { usePianoRoll } from '../hooks/usePianoRoll';
+import { getCurrentPlaybackTime, useTone } from '../hooks/useTone';
+import { supabase } from '../supabaseClient';
 
 enum PlaybackStatus {
-  Stopped = "Stopped",
-  Playing = "Playing",
-  Paused = "Paused",
+  Stopped = 'Stopped',
+  Playing = 'Playing',
+  Paused = 'Paused',
 }
 
 const PianoRollFalling: React.FC = () => {
@@ -26,13 +26,13 @@ const PianoRollFalling: React.FC = () => {
     isLoading: fileRecordLoading,
     error: fileRecordError,
   } = useSWR(
-    ["files" as const, userId, uploadId],
+    ['files' as const, userId, uploadId],
     async ([collection, userId, fileId]) => {
       const { data: file, error: fileError } = await supabase
         .from(collection)
-        .select("*")
-        .eq("user_id", userId)
-        .eq("id", fileId)
+        .select('*')
+        .eq('user_id', userId)
+        .eq('id', fileId)
         .single();
       if (fileError) throw fileError;
       return file;
@@ -44,17 +44,17 @@ const PianoRollFalling: React.FC = () => {
     isLoading: midiLoading,
     error: midiError,
   } = useSWR(
-    fileRecord ? ["midi-files" as const, fileRecord?.file_path] : undefined,
+    fileRecord ? ['midi-files' as const, fileRecord?.file_path] : undefined,
     async ([collection, filePath]) => {
       const { data: blob, error: storageError } = await supabase.storage
         .from(collection)
         .download(filePath);
-      if (storageError) throw new Error("Failed to download file");
+      if (storageError) throw new Error('Failed to download file');
       try {
         const buffer = await blob.arrayBuffer();
         return new Midi(buffer);
       } catch (error) {
-        console.error("Error parsing MIDI file:", error);
+        console.error('Error parsing MIDI file:', error);
         throw error;
       }
     },
@@ -80,8 +80,8 @@ const PianoRollFalling: React.FC = () => {
       return;
     }
     resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-    return () => window.removeEventListener("resize", resizeCanvas);
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
   }, [!canvasRef.current, resizeCanvas]);
 
   // Animation loop
@@ -103,13 +103,13 @@ const PianoRollFalling: React.FC = () => {
     PlaybackStatus.Stopped,
   );
   const handlePlay = async () => {
-    if (!midi) throw new Error("Expected MIDI data");
+    if (!midi) throw new Error('Expected MIDI data');
     setPlaybackStatus(PlaybackStatus.Playing);
     try {
       playMidi(midi);
-      console.log("MIDI playback started");
+      console.log('MIDI playback started');
     } catch (err) {
-      console.error("Error playing MIDI:", err);
+      console.error('Error playing MIDI:', err);
       setPlaybackStatus(PlaybackStatus.Stopped);
     }
   };
@@ -128,43 +128,43 @@ const PianoRollFalling: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className='min-h-screen bg-gray-900 text-white p-6'>
+      <div className='max-w-6xl mx-auto'>
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
+        <div className='flex justify-between items-center mb-6'>
           <div>
             <button
-              onClick={() => navigate("/uploads")}
-              className="text-blue-400 hover:text-blue-300 mb-2 flex items-center gap-2"
+              onClick={() => navigate('/uploads')}
+              className='text-blue-400 hover:text-blue-300 mb-2 flex items-center gap-2'
             >
               ← Back to Uploads
             </button>
             {!loading && !error && (
               <>
-                <h2 className="text-2xl font-bold">{fileRecord.filename}</h2>
-                <p className="text-sm text-gray-400">
-                  Time: {currentTimeSeconds.toFixed(1)}s | Status:{" "}
+                <h2 className='text-2xl font-bold'>{fileRecord.filename}</h2>
+                <p className='text-sm text-gray-400'>
+                  Time: {currentTimeSeconds.toFixed(1)}s | Status:{' '}
                   {playbackStatus} | MIDI: Loaded
                 </p>
               </>
             )}
             {loading && (
-              <p className="text-3xl text-gray-400 mb-4">Loading...</p>
+              <p className='text-3xl text-gray-400 mb-4'>Loading...</p>
             )}
             {error && (
-              <p className="text-xl text-red-400 mb-4">
+              <p className='text-xl text-red-400 mb-4'>
                 {error?.message ?? JSON.stringify(error)}
               </p>
             )}
           </div>
 
           {/* Controls */}
-          <div className="flex flex-col sm:flex-row gap-2 sm:pt-8">
+          <div className='flex flex-col sm:flex-row gap-2 sm:pt-8'>
             {playbackStatus === PlaybackStatus.Stopped && (
               <button
                 onClick={handlePlay}
                 disabled={!midi || loading || error}
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded disabled:bg-gray-600 disabled:cursor-not-allowed"
+                className='bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded disabled:bg-gray-600 disabled:cursor-not-allowed'
               >
                 Play
               </button>
@@ -178,7 +178,7 @@ const PianoRollFalling: React.FC = () => {
             <button
               onClick={handleStop}
               disabled={playbackStatus === PlaybackStatus.Stopped}
-              className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded disabled:bg-gray-800 disabled:cursor-not-allowed"
+              className='bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded disabled:bg-gray-800 disabled:cursor-not-allowed'
             >
               Stop
             </button>
@@ -188,8 +188,8 @@ const PianoRollFalling: React.FC = () => {
         {/* Canvas */}
         <canvas
           ref={canvasRef}
-          className="w-full bg-gray-800 rounded border border-gray-700"
-          style={{ height: "500px" }}
+          className='w-full bg-gray-800 rounded border border-gray-700'
+          style={{ height: '500px' }}
         />
       </div>
     </div>

@@ -107,7 +107,7 @@ const History = () => {
                         <h3 className='text-lg font-medium text-white'>
                           {file.filename}
                         </h3>
-                        <div className='flex items-center space-x-4 mt-1 text-sm text-gray-400'>
+                        <div className='flex items-center space-x-4 mt-1 text-sm text-gray-400 sm:flex-row sm:space-x-4'>
                           <span>{formatFileSize(file.file_size)}</span>
                           <span>•</span>
                           <span>{file.mime_type}</span>
