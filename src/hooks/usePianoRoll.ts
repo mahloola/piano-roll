@@ -1,22 +1,83 @@
 // hooks/usePianoRoll.ts
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef } from "react";
+import type { Midi } from "@tonejs/midi";
+import type { Note } from "@tonejs/midi/dist/Note";
+import { PERCUSSION_CHANNEL } from "../utils/constants";
 
 interface Key {
-  id: number;
+  id: Note["midi"];
   position: number;
-  color: 'white' | 'black';
-  active: boolean;
+  color: "white" | "black";
 }
 
-interface KeyMap {
-  [key: number]: Array<{ start: number; end: number }>;
+interface MidiKeyMap {
+  [keyId: Key["id"]]: { startSeconds: number; endSeconds: number }[];
 }
+const createMidiKeyMap = (data: Midi | undefined) => {
+  if (!data) return undefined;
+  const keyMap: MidiKeyMap = {};
+  for (let i = 21; i < 109; i++) {
+    keyMap[i] = [];
+  }
+  data.tracks
+    .filter((track) => track.channel !== PERCUSSION_CHANNEL)
+    .forEach((track) => {
+      track.notes.forEach((note) => {
+        keyMap[note.midi].push({
+          startSeconds: note.time,
+          endSeconds: note.time + note.duration,
+        });
+      });
+    });
+  return keyMap;
+};
+
+const createKeyboard = (): Key[] => {
+  const keys: Key[] = [];
+  for (let i = 21; i < 109; i++) {
+    const pitchId = (i - 12) % 12;
+    const octaveId = Math.floor((i - 12) / 12);
+    let position = octaveId * 7 - 5;
+    position += 0.5 * pitchId;
+    if (pitchId > 4) position += 0.5;
+
+    const color = Math.floor(position) === position ? "white" : "black";
+    keys.push({ id: i, position, color });
+  }
+  return keys;
+};
+const keyboard = createKeyboard();
+
+const PADDING_X = 32;
+const PADDING_BOTTOM = 32;
+
+const calculateDimensions = (canvas: HTMLCanvasElement) => {
+  const keyboardWidth = Math.max(100, canvas.width - PADDING_X - PADDING_X);
+  const keyboardHeight = (keyboardWidth / 52) * 6;
+  const whiteKeyWidth = keyboardWidth / 52;
+  const whiteKeyHeight = keyboardHeight;
+  const blackKeyWidth = whiteKeyWidth * 0.5;
+  const blackKeyHeight = (whiteKeyHeight * 5) / 8;
+  const secondSize = (canvas.height - PADDING_BOTTOM - keyboardHeight) / 4;
+
+  return {
+    keyboardWidth,
+    keyboardHeight,
+    whiteKeyWidth,
+    whiteKeyHeight,
+    blackKeyWidth,
+    blackKeyHeight,
+    secondSize,
+  };
+};
 
 export const usePianoRoll = (
   canvasRef: React.RefObject<HTMLCanvasElement | null>,
+  midi: Midi | undefined,
 ) => {
-  const [keys, setKeys] = useState<Key[]>([]);
-  const [dimensions, setDimensions] = useState({
+  const midiKeyMap = useMemo(() => createMidiKeyMap(midi), [midi]);
+
+  const dimensionsRef = useRef({
     keyboardWidth: 0,
     keyboardHeight: 0,
     whiteKeyWidth: 0,
@@ -26,213 +87,136 @@ export const usePianoRoll = (
     secondSize: 0,
   });
 
-  const keysRef = useRef<Key[]>([]);
-  const dimensionsRef = useRef(dimensions);
-
-  useEffect(() => {
-    keysRef.current = keys;
-  }, [keys]);
-
-  useEffect(() => {
-    dimensionsRef.current = dimensions;
-  }, [dimensions]);
-
-  const createKeys = useCallback(() => {
-    const newKeys: Key[] = [];
-    for (let i = 21; i < 109; i++) {
-      const pitchId = (i - 12) % 12;
-      const octaveId = Math.floor((i - 12) / 12);
-      let position = octaveId * 7 - 5;
-      position += 0.5 * pitchId;
-      if (pitchId > 4) position += 0.5;
-
-      const color = Math.floor(position) === position ? 'white' : 'black';
-      newKeys.push({ id: i, position, color, active: false });
-    }
-    setKeys(newKeys);
-    keysRef.current = newKeys;
-  }, []);
-
-  const calculateDimensions = () => {
-    if (!canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const paddingBottom = 32;
-    const paddingLeft = 32;
-    const paddingRight = 32;
-
-    const keyboardWidth = Math.max(
-      100,
-      canvas.width - paddingLeft - paddingRight,
-    );
-    const keyboardHeight = (keyboardWidth / 52) * 6;
-    const whiteKeyWidth = keyboardWidth / 52;
-    const whiteKeyHeight = keyboardHeight;
-    const blackKeyWidth = whiteKeyWidth * 0.5;
-    const blackKeyHeight = (whiteKeyHeight * 5) / 8;
-    const secondSize = (canvas.height - paddingBottom - keyboardHeight) / 4;
-
-    const newDimensions = {
-      keyboardWidth,
-      keyboardHeight,
-      whiteKeyWidth,
-      whiteKeyHeight,
-      blackKeyWidth,
-      blackKeyHeight,
-      secondSize,
-    };
-
-    setDimensions(newDimensions);
-    dimensionsRef.current = newDimensions;
-  };
-
-  const initPianoRoll = () => {
-    createKeys();
-    calculateDimensions();
-  };
-
   const resizeCanvas = () => {
     if (canvasRef.current?.parentElement) {
       const canvas = canvasRef.current;
       const container = canvas.parentElement;
       canvas.width = container?.clientWidth || 800;
       canvas.height = 500;
-      calculateDimensions();
+      dimensionsRef.current = calculateDimensions(canvas);
     }
   };
 
-  const updateKeyActivity = useCallback(
-    (currentTime: number, keyMap: KeyMap) => {
-      const updatedKeys = keysRef.current.map((key) => {
-        const intervals = keyMap[key.id] || [];
-        const isActive = intervals.some(
+  const drawKeyboard = useCallback(
+    (ctx: CanvasRenderingContext2D, currentTimeSeconds: number) => {
+      const dims = dimensionsRef.current;
+      const yPos = ctx.canvas.height - PADDING_BOTTOM - dims.whiteKeyHeight;
+
+      const isKeyActive = (key: Key) => {
+        const intervals = midiKeyMap?.[key.id] || [];
+        return intervals.some(
           (interval) =>
-            currentTime >= interval.start && currentTime <= interval.end,
+            currentTimeSeconds >= interval.startSeconds &&
+            currentTimeSeconds <= interval.endSeconds,
         );
-        return { ...key, active: isActive };
-      });
-      setKeys(updatedKeys);
+      };
+
+      keyboard
+        .filter((key) => key.color === "white")
+        .forEach((key) => {
+          ctx.fillStyle = isKeyActive(key) ? "#0080ff" : "#ffffff";
+          ctx.strokeStyle = "#808080";
+          ctx.fillRect(
+            PADDING_X + key.position * dims.whiteKeyWidth,
+            yPos,
+            dims.whiteKeyWidth,
+            dims.whiteKeyHeight,
+          );
+          ctx.strokeRect(
+            PADDING_X + key.position * dims.whiteKeyWidth,
+            yPos,
+            dims.whiteKeyWidth,
+            dims.whiteKeyHeight,
+          );
+        });
+
+      keyboard
+        .filter((key) => key.color === "black")
+        .forEach((key) => {
+          ctx.fillStyle = isKeyActive(key) ? "#0080ff" : "#000000";
+          ctx.strokeStyle = "#808080";
+          ctx.fillRect(
+            PADDING_X +
+              key.position * dims.whiteKeyWidth +
+              dims.blackKeyWidth / 2,
+            yPos,
+            dims.blackKeyWidth,
+            dims.blackKeyHeight,
+          );
+          ctx.strokeRect(
+            PADDING_X +
+              key.position * dims.whiteKeyWidth +
+              dims.blackKeyWidth / 2,
+            yPos,
+            dims.blackKeyWidth,
+            dims.blackKeyHeight,
+          );
+        });
     },
-    [],
+    [midiKeyMap],
   );
 
-  const drawKeyboard = useCallback((ctx: CanvasRenderingContext2D) => {
-    const dims = dimensionsRef.current;
-    const currentKeys = keysRef.current;
-    const yPos = ctx.canvas.height - 32 - dims.whiteKeyHeight;
-
-    currentKeys.forEach((key) => {
-      if (key.color === 'white') {
-        ctx.fillStyle = key.active ? '#0080ff' : '#ffffff';
-        ctx.strokeStyle = '#808080';
-        ctx.fillRect(
-          32 + key.position * dims.whiteKeyWidth,
-          yPos,
-          dims.whiteKeyWidth,
-          dims.whiteKeyHeight,
-        );
-        ctx.strokeRect(
-          32 + key.position * dims.whiteKeyWidth,
-          yPos,
-          dims.whiteKeyWidth,
-          dims.whiteKeyHeight,
-        );
-      }
-    });
-
-    // Draw black keys
-    currentKeys.forEach((key) => {
-      if (key.color === 'black') {
-        ctx.fillStyle = key.active ? '#0080ff' : '#000000';
-        ctx.strokeStyle = '#808080';
-        ctx.fillRect(
-          32 + key.position * dims.whiteKeyWidth + dims.blackKeyWidth / 2,
-          yPos,
-          dims.blackKeyWidth,
-          dims.blackKeyHeight,
-        );
-        ctx.strokeRect(
-          32 + key.position * dims.whiteKeyWidth + dims.blackKeyWidth / 2,
-          yPos,
-          dims.blackKeyWidth,
-          dims.blackKeyHeight,
-        );
-      }
-    });
-  }, []);
-
   const drawIncomingNotes = useCallback(
-    (ctx: CanvasRenderingContext2D, currentTime: number, keyMap: KeyMap) => {
+    (ctx: CanvasRenderingContext2D, currentTimeSeconds: number) => {
       const dims = dimensionsRef.current;
-      const currentKeys = keysRef.current;
-      const incomingNotesHeight =
-        ctx.canvas.height - 32 - dims.keyboardHeight - 4;
-      const lookAheadTime = 4;
+      const judgementLineY =
+        ctx.canvas.height - PADDING_BOTTOM - dims.keyboardHeight;
+      const scrollSpeed = 400;
+      const lookaheadSeconds = 4;
 
-      ctx.fillStyle = '#0080ff';
+      keyboard.forEach((key) => {
+        const visibleIntervals = (midiKeyMap?.[key.id] || [])
+          .filter((interval) => interval.endSeconds > currentTimeSeconds)
+          .filter(
+            (interval) =>
+              interval.startSeconds < currentTimeSeconds + lookaheadSeconds,
+          );
+        visibleIntervals.forEach((interval) => {
+          const startDelta = interval.startSeconds - currentTimeSeconds;
+          const endDelta = interval.endSeconds - currentTimeSeconds;
 
-      currentKeys.forEach((key) => {
-        const intervals = keyMap[key.id] || [];
-        intervals.forEach((interval) => {
-          const noteStartTime = interval.start;
-          const noteEndTime = interval.end;
-          const startY =
-            incomingNotesHeight -
-            ((noteStartTime - currentTime) / lookAheadTime) *
-              incomingNotesHeight;
-          const endY =
-            incomingNotesHeight -
-            ((noteEndTime - currentTime) / lookAheadTime) * incomingNotesHeight;
+          const startY = judgementLineY - endDelta * scrollSpeed;
+          const endY = Math.min(
+            judgementLineY,
+            judgementLineY - startDelta * scrollSpeed,
+          );
+          const height = Math.abs(endY - startY);
 
-          if (endY < 0 || startY > incomingNotesHeight) return;
-
-          const visibleStartY = Math.max(0, startY);
-          const visibleEndY = Math.min(incomingNotesHeight, endY);
-          const height = Math.max(1, visibleEndY - visibleStartY);
-
-          if (key.color === 'white') {
-            ctx.fillRect(
-              32 + key.position * dims.whiteKeyWidth,
-              visibleStartY,
-              dims.whiteKeyWidth,
-              height,
-            );
-          } else {
-            ctx.fillRect(
-              32 + key.position * dims.whiteKeyWidth + dims.blackKeyWidth / 2,
-              visibleStartY,
-              dims.blackKeyWidth,
-              height,
-            );
-          }
+          const width =
+            key.color === "white" ? dims.whiteKeyWidth : dims.blackKeyWidth;
+          const startX =
+            PADDING_X +
+            key.position * dims.whiteKeyWidth +
+            (key.color === "black" ? dims.blackKeyWidth / 2 : 0);
+          ctx.fillStyle = key.color === "black" ? "#0040aa" : "#0080ff";
+          ctx.fillRect(startX, startY, width, height);
         });
       });
     },
-    [],
+    [midiKeyMap],
   );
 
-  const drawPianoRoll = (
-    keyMap: KeyMap,
-    _isPlaying: boolean,
-    currentTime: number = 0,
-  ) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const drawPianoRoll = useCallback(
+    (currentTimeSeconds: number = 0) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-    ctx.fillStyle = '#202020';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+      // draw background
+      ctx.fillStyle = "#202020";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    if (dimensionsRef.current.keyboardWidth > 0) {
-      updateKeyActivity(currentTime, keyMap);
-      drawIncomingNotes(ctx, currentTime, keyMap);
-      drawKeyboard(ctx);
-    }
-  };
+      if (dimensionsRef.current.keyboardWidth > 0) {
+        drawIncomingNotes(ctx, currentTimeSeconds);
+        drawKeyboard(ctx, currentTimeSeconds);
+      }
+    },
+    [canvasRef, drawIncomingNotes, drawKeyboard],
+  );
 
   return {
-    initPianoRoll,
     drawPianoRoll,
     resizeCanvas,
   };

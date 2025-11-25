@@ -1,239 +1,184 @@
 // components/PianoRollFalling.tsx
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { UserAuth } from '../context/AuthContext';
-import { useMidiParser } from '../hooks/useMidiParser';
-import { usePianoRoll } from '../hooks/usePianoRoll';
-import { useTone } from '../hooks/useTone';
-import { supabase } from '../supabaseClient';
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { UserAuth } from "../context/AuthContext";
+import { usePianoRoll } from "../hooks/usePianoRoll";
+import { getCurrentPlaybackTime, useTone } from "../hooks/useTone";
+import { supabase } from "../supabaseClient";
+import useSWR from "swr";
+import { Midi } from "@tonejs/midi";
+
+enum PlaybackStatus {
+  Stopped = "Stopped",
+  Playing = "Playing",
+  Paused = "Paused",
+}
 
 const PianoRollFalling: React.FC = () => {
-  const { uploadId } = useParams();
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [midiFile, setMidiFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const animationRef = useRef<number>(0);
-  const startTimeRef = useRef<number>(0);
-
   const { session } = UserAuth();
-  const { initTone, playMidi, pauseMidi, resumeMidi, stopMidi, isToneReady } =
-    useTone();
-  const { initPianoRoll, drawPianoRoll, resizeCanvas } =
-    usePianoRoll(canvasRef);
-  const { parseMidiFile, midiData, keyMap } = useMidiParser();
-
-  // Fetch MIDI file
-  const fetchMidiFile = useCallback(async () => {
-    if (!uploadId || !session?.user?.id) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Get file metadata
-      const { data: fileData, error: dbError } = await supabase
-        .from('files')
-        .select('*')
-        .eq('id', uploadId)
-        .eq('user_id', session.user.id)
+  const userId = session?.user?.id;
+  const { uploadId } = useParams();
+  const {
+    data: fileRecord,
+    isLoading: fileRecordLoading,
+    error: fileRecordError,
+  } = useSWR(
+    ["files" as const, userId, uploadId],
+    async ([collection, userId, fileId]) => {
+      const { data: file, error: fileError } = await supabase
+        .from(collection)
+        .select("*")
+        .eq("user_id", userId)
+        .eq("id", fileId)
         .single();
+      if (fileError) throw fileError;
+      return file;
+    },
+  );
 
-      if (dbError) throw new Error('File not found');
-      if (!fileData) throw new Error('No file data');
+  const {
+    data: midi,
+    isLoading: midiLoading,
+    error: midiError,
+  } = useSWR(
+    fileRecord ? ["midi-files" as const, fileRecord?.file_path] : undefined,
+    async ([collection, filePath]) => {
+      const { data: blob, error: storageError } = await supabase.storage
+        .from(collection)
+        .download(filePath);
+      if (storageError) throw new Error("Failed to download file");
+      try {
+        const buffer = await blob.arrayBuffer();
+        return new Midi(buffer);
+      } catch (error) {
+        console.error("Error parsing MIDI file:", error);
+        throw error;
+      }
+    },
+  );
 
-      // Download file from storage
-      const { data: fileBlob, error: storageError } = await supabase.storage
-        .from('midi-files')
-        .download(fileData.file_path);
+  const loading = fileRecordLoading || midiLoading;
+  const error = fileRecordError || midiError;
 
-      if (storageError) throw new Error('Failed to download file');
+  const { currentTimeSeconds, playMidi, pauseMidi, resumeMidi, stopMidi } =
+    useTone();
 
-      // Convert to File object
-      const file = new File([fileBlob], fileData.filename, {
-        type: 'audio/midi',
-      });
-      setMidiFile(file);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to load file';
-      setError(message);
-      console.error('Error fetching MIDI:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [uploadId, session]);
+  useEffect(() => {
+    return () => {
+      stopMidi(); // Stop MIDI playback when leaving the page
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const initWhenReady = () => {
+  const { drawPianoRoll, resizeCanvas } = usePianoRoll(canvasRef, midi);
+
+  useEffect(() => {
     if (!canvasRef.current) {
-      requestAnimationFrame(initWhenReady);
       return;
     }
-    initTone();
-    initPianoRoll();
     resizeCanvas();
-    const handleResize = () => resizeCanvas();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  };
-
-  // Initialize
-  useEffect(() => {
-    fetchMidiFile();
-  }, []);
-
-  useEffect(() => {
-    initWhenReady();
-  }, []);
-
-  // Parse MIDI when ready
-  useEffect(() => {
-    if (midiFile && isToneReady) {
-      parseMidiFile(midiFile);
-    }
-  }, [midiFile, isToneReady, parseMidiFile]);
+    window.addEventListener("resize", resizeCanvas);
+    return () => window.removeEventListener("resize", resizeCanvas);
+  }, [!canvasRef.current, resizeCanvas]);
 
   // Animation loop
+  const animationRef = useRef<number>(0);
   useEffect(() => {
-    if (!keyMap || !isPlaying) {
-      setCurrentTime(0);
-      if (keyMap) drawPianoRoll(keyMap, false, 0);
-      if (animationRef.current) cancelAnimationFrame(animationRef.current);
-      return;
-    }
-    if (isPaused) return;
-
-    startTimeRef.current = Date.now() - currentTime * 1000;
+    if (!canvasRef.current) return;
 
     const animate = () => {
-      const elapsed = (Date.now() - startTimeRef.current) / 1000;
-      setCurrentTime(elapsed);
-      drawPianoRoll(keyMap, true, elapsed);
+      drawPianoRoll(getCurrentPlaybackTime());
       animationRef.current = requestAnimationFrame(animate);
     };
-
     animationRef.current = requestAnimationFrame(animate);
-
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [keyMap, isPlaying, isPaused]);
+  }, [drawPianoRoll]);
 
-  const handlePlay = useCallback(async () => {
-    console.log('Play clicked:', { midiData: !!midiData, isToneReady });
-
-    if (!midiData) {
-      console.log('No MIDI data available');
-      return;
+  const [playbackStatus, setPlaybackStatus] = useState<PlaybackStatus>(
+    PlaybackStatus.Stopped,
+  );
+  const handlePlay = async () => {
+    if (!midi) throw new Error("Expected MIDI data");
+    setPlaybackStatus(PlaybackStatus.Playing);
+    try {
+      playMidi(midi);
+      console.log("MIDI playback started");
+    } catch (err) {
+      console.error("Error playing MIDI:", err);
+      setPlaybackStatus(PlaybackStatus.Stopped);
     }
-
-    setIsPlaying(true);
-
-    if (isToneReady) {
-      try {
-        await playMidi(midiData);
-        console.log('MIDI playback started');
-      } catch (err) {
-        console.error('Error playing MIDI:', err);
-        setIsPlaying(false);
-      }
-    } else {
-      console.log('Tone.js not ready - visualization only');
-    }
-  }, [midiData, isToneReady, playMidi]);
-
-  const handleStop = useCallback(() => {
-    console.log('Stop clicked');
-    setIsPlaying(false);
-    setIsPaused(false);
-    setCurrentTime(0);
+  };
+  const handleStop = () => {
     stopMidi();
-  }, [stopMidi]);
+    setPlaybackStatus(PlaybackStatus.Stopped);
+  };
 
-  const handlePause = useCallback(() => {
-    if (isPaused) {
-      resumeMidi();
-      setIsPaused(false);
-    } else {
-      pauseMidi();
-      setIsPaused(true);
-    }
-  }, [isPaused, resumeMidi, pauseMidi]);
-
-  const handleClose = () => navigate('/uploads');
-
-  // Loading state
-  if (loading) {
-    return (
-      <div className='min-h-screen bg-gray-900 text-white p-6 flex items-center justify-center'>
-        <p className='text-xl'>Loading MIDI file...</p>
-      </div>
-    );
-  }
-
-  // Error state
-  if (error || !midiFile) {
-    const message = error ? `Error: ${error}` : 'No MIDI file found';
-    return (
-      <div className='min-h-screen bg-gray-900 text-white p-6 flex items-center justify-center'>
-        <div className='text-center'>
-          <p className='text-xl text-red-400 mb-4'>{message}</p>
-          <button
-            onClick={handleClose}
-            className='bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded'
-          >
-            Back to Uploads
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handlePause = () => {
+    pauseMidi();
+    setPlaybackStatus(PlaybackStatus.Paused);
+  };
+  const handleResume = () => {
+    resumeMidi();
+    setPlaybackStatus(PlaybackStatus.Playing);
+  };
 
   return (
-    <div className='min-h-screen bg-gray-900 text-white p-6'>
-      <div className='max-w-6xl mx-auto'>
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className='flex justify-between items-center mb-6'>
+        <div className="flex justify-between items-center mb-6">
           <div>
             <button
-              onClick={handleClose}
-              className='text-blue-400 hover:text-blue-300 mb-2 flex items-center gap-2'
+              onClick={() => navigate("/uploads")}
+              className="text-blue-400 hover:text-blue-300 mb-2 flex items-center gap-2"
             >
               ← Back to Uploads
             </button>
-            <h2 className='text-2xl font-bold'>{midiFile.name}</h2>
-            <p className='text-sm text-gray-400'>
-              Time: {currentTime.toFixed(1)}s | Status:{' '}
-              {isPlaying ? 'Playing' : 'Stopped'} | MIDI:{' '}
-              {midiData ? 'Loaded' : 'Loading...'}
-            </p>
+            {!loading && !error && (
+              <>
+                <h2 className="text-2xl font-bold">{fileRecord.filename}</h2>
+                <p className="text-sm text-gray-400">
+                  Time: {currentTimeSeconds.toFixed(1)}s | Status:{" "}
+                  {playbackStatus} | MIDI: Loaded
+                </p>
+              </>
+            )}
+            {loading && (
+              <p className="text-3xl text-gray-400 mb-4">Loading...</p>
+            )}
+            {error && (
+              <p className="text-xl text-red-400 mb-4">
+                {error?.message ?? JSON.stringify(error)}
+              </p>
+            )}
           </div>
 
           {/* Controls */}
-          <div className='flex flex-col sm:flex-row gap-2 sm:pt-8'>
-            <button
-              onClick={handlePlay}
-              disabled={!midiData || isPlaying}
-              className='bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded disabled:bg-gray-600 disabled:cursor-not-allowed'
-            >
-              {isPlaying ? 'Playing...' : 'Play'}
-            </button>
-            <button
-              onClick={handlePause}
-              disabled={!isPlaying}
-            >
-              {isPaused ? 'Resume' : 'Pause'}
-            </button>
+          <div className="flex flex-col sm:flex-row gap-2 sm:pt-8">
+            {playbackStatus === PlaybackStatus.Stopped && (
+              <button
+                onClick={handlePlay}
+                disabled={!midi || loading || error}
+                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded disabled:bg-gray-600 disabled:cursor-not-allowed"
+              >
+                Play
+              </button>
+            )}
+            {playbackStatus === PlaybackStatus.Playing && (
+              <button onClick={handlePause}>Pause</button>
+            )}
+            {playbackStatus === PlaybackStatus.Paused && (
+              <button onClick={handleResume}>Resume</button>
+            )}
             <button
               onClick={handleStop}
-              disabled={!isPlaying}
-              className='bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded disabled:bg-gray-800 disabled:cursor-not-allowed'
+              disabled={playbackStatus === PlaybackStatus.Stopped}
+              className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded disabled:bg-gray-800 disabled:cursor-not-allowed"
             >
               Stop
             </button>
@@ -243,8 +188,8 @@ const PianoRollFalling: React.FC = () => {
         {/* Canvas */}
         <canvas
           ref={canvasRef}
-          className='w-full bg-gray-800 rounded border border-gray-700'
-          style={{ height: '500px' }}
+          className="w-full bg-gray-800 rounded border border-gray-700"
+          style={{ height: "500px" }}
         />
       </div>
     </div>

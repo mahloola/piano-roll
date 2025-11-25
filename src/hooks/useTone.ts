@@ -1,100 +1,53 @@
 // hooks/useTone.ts
-import { useRef, useState } from 'react';
+import type { Midi } from "@tonejs/midi";
+import { useEffect, useRef, useState } from "react";
+import * as Tone from "tone";
+import type { Part } from "tone";
+import { PERCUSSION_CHANNEL } from "../utils/constants";
+import type { Note } from "@tonejs/midi/dist/Note";
 
-interface MidiNote {
-  time: number;
-  duration: number;
-  name: string;
-  velocity: number;
-}
+const VISUAL_FRAMERATE = 60;
 
-interface MidiData {
-  tracks: Array<{
-    notes: MidiNote[];
-    isPercussion: boolean;
-  }>;
-  duration: number;
-}
+const synth = new Tone.PolySynth(Tone.Synth, {
+  oscillator: {
+    type: "sawtooth",
+  },
+  envelope: {
+    attack: 0.02,
+    decay: 0.1,
+    sustain: 0.3,
+    release: 1,
+  },
+  volume: -10,
+}).toDestination();
+
+const transport = Tone.Transport;
+export const getCurrentPlaybackTime = () => transport.seconds || 0;
 
 export const useTone = () => {
-  const [isToneReady, setIsToneReady] = useState(false);
-  const [toneError, setToneError] = useState<string | null>(null);
-  const synthRef = useRef<any>(null);
-  const transportRef = useRef<any>(null);
-  const partRef = useRef<any>(null);
+  const partRef = useRef<Part | null>(null);
 
-  const initTone = async () => {
-    try {
-      if (typeof window === 'undefined') {
-        setToneError('Tone.js can only run in browser environment');
-        return;
-      }
-
-      let Tone;
-      try {
-        const toneModule = await import('tone');
-        Tone = toneModule;
-      } catch {
-        console.warn('Tone.js not available, using mock mode');
-        setToneError(
-          'Tone.js not installed - running in visualization-only mode',
-        );
-        setIsToneReady(true);
-        return;
-      }
-
-      // arbitrary synth settings could proly change to whatever u want
-      const polySynth = new Tone.PolySynth(Tone.Synth, {
-        oscillator: {
-          type: 'sawtooth',
-        },
-        envelope: {
-          attack: 0.02,
-          decay: 0.1,
-          sustain: 0.3,
-          release: 1,
-        },
-      }).toDestination();
-
-      polySynth.volume.value = -10;
-
-      synthRef.current = polySynth;
-      transportRef.current = Tone.Transport;
-      setIsToneReady(true);
-    } catch (error) {
-      console.error('Failed to initialize Tone.js:', error);
-      setToneError('Failed to initialize audio engine');
-      setIsToneReady(false);
-    }
-  };
-
-  const playMidi = async (midiData: MidiData) => {
-    if (!synthRef.current || !transportRef.current) {
-      console.warn('❌ Audio not available - visualization only');
+  const playMidi = (midiData: Midi) => {
+    if (!synth || !transport) {
+      console.warn("❌ Audio not available - visualization only");
       return;
     }
 
     try {
-      const Tone = await import('tone');
-
-      const Part = Tone.Part;
-      transportRef.current.stop();
+      transport.stop();
       if (partRef.current) {
         partRef.current.stop();
       }
 
-      const allNotes: MidiNote[] = [];
-      midiData.tracks.forEach((track) => {
-        if (!track.isPercussion) {
-          allNotes.push(...track.notes);
-        }
-      });
+      const allNotes = midiData.tracks
+        .filter((track) => track.channel !== PERCUSSION_CHANNEL)
+        .flatMap((track) => track.notes);
 
-      partRef.current = new Part(
-        (time: number, note: MidiNote | number) => {
-          const midiNote = note as MidiNote;
+      partRef.current = new Tone.Part(
+        (time, note) => {
+          const midiNote = note as Note;
 
-          synthRef.current.triggerAttackRelease(
+          synth!.triggerAttackRelease(
             midiNote.name,
             midiNote.duration,
             time,
@@ -103,55 +56,44 @@ export const useTone = () => {
         },
         allNotes.map((note) => [note.time, note]),
       );
-
       partRef.current.start(0);
-      transportRef.current.start();
+      transport.start();
     } catch (error) {
-      console.error('❌ Error playing MIDI:', error);
+      console.error("❌ Error playing MIDI:", error);
     }
   };
 
   const stopMidi = () => {
-    if (transportRef.current) {
-      transportRef.current.stop();
-      transportRef.current.cancel();
-    }
-    if (partRef.current) {
-      partRef.current.stop();
-    }
-    if (synthRef.current) {
-      synthRef.current.releaseAll();
-    }
+    transport.stop();
+    transport.cancel();
+    if (partRef.current) partRef.current.stop();
+    synth.releaseAll();
   };
 
   const pauseMidi = () => {
-    if (transportRef.current) {
-      transportRef.current.pause();
-    }
-
-    if (partRef.current) {
-      partRef.current.stop();
-    }
-
-    if (synthRef.current) {
-      synthRef.current.releaseAll();
-    }
+    transport.pause();
+    synth.releaseAll();
   };
 
   const resumeMidi = () => {
-    if (transportRef.current && partRef.current) {
-      transportRef.current.start();
-      partRef.current.start(0);
-    }
+    transport.start();
+    if (partRef.current) partRef.current.start(0);
   };
 
+  const [currentTimeSeconds, setCurrentTimeSeconds] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTimeSeconds(transport?.seconds || 0);
+    }, 1000 / VISUAL_FRAMERATE);
+    return () => clearInterval(interval);
+  }, []);
+
   return {
-    initTone,
+    currentTimeSeconds,
+    transport,
     playMidi,
     stopMidi,
     pauseMidi,
     resumeMidi,
-    isToneReady,
-    toneError,
   };
 };
