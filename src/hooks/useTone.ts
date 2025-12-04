@@ -1,16 +1,16 @@
 // hooks/useTone.ts
-import type { Midi } from "@tonejs/midi";
-import { useEffect, useRef, useState } from "react";
-import * as Tone from "tone";
-import type { Part } from "tone";
-import { PERCUSSION_CHANNEL } from "../utils/constants";
-import type { Note } from "@tonejs/midi/dist/Note";
+import type { Midi } from '@tonejs/midi';
+import type { Note } from '@tonejs/midi/dist/Note';
+import { useEffect, useRef, useState } from 'react';
+import type { Part } from 'tone';
+import * as Tone from 'tone';
+import { PERCUSSION_CHANNEL } from '../utils/constants';
 
 const VISUAL_FRAMERATE = 60;
 
 const synth = new Tone.PolySynth(Tone.Synth, {
   oscillator: {
-    type: "sawtooth",
+    type: 'sawtooth',
   },
   envelope: {
     attack: 0.02,
@@ -29,15 +29,12 @@ export const useTone = () => {
 
   const playMidi = (midiData: Midi) => {
     if (!synth || !transport) {
-      console.warn("❌ Audio not available - visualization only");
+      console.warn('❌ Audio not available - visualization only');
       return;
     }
 
     try {
       transport.stop();
-      if (partRef.current) {
-        partRef.current.stop();
-      }
 
       const allNotes = midiData.tracks
         .filter((track) => track.channel !== PERCUSSION_CHANNEL)
@@ -59,14 +56,13 @@ export const useTone = () => {
       partRef.current.start(0);
       transport.start();
     } catch (error) {
-      console.error("❌ Error playing MIDI:", error);
+      console.error('❌ Error playing MIDI:', error);
     }
   };
 
   const stopMidi = () => {
     transport.stop();
     transport.cancel();
-    if (partRef.current) partRef.current.stop();
     synth.releaseAll();
   };
 
